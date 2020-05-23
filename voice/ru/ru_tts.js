@@ -9,6 +9,15 @@
 // (N/A) Special grammar: (please specify which)
 // (X) Support announcing highway exits
 
+// Версия от 22.05.20, скорректированная Щербаковым Р.Ю.
+//
+// Основные изменения:
+// Изменение русификации для лучшего следования нормам русского языка при использовании названий дорог, взятых из госреестров
+// Расшифровка сокращений, приянтых на картах, в полные обозначение населенных пунктов и иных объектов
+// Произношение названий дорог в более-менее правильном падеже
+// Перемещение типа дорог (улица, проспект и т.д.) на место перед названием
+// Исправление кривой русификации от создателей приблуды ("выполните съезд" на "используйте съезд" и т.д.)
+
 var metricConst;
 var tts;
 var dictionary = {};
@@ -42,10 +51,10 @@ function populateDictionary(tts) {
 	
 	// ROUNDABOUTS
 	dictionary["prepare_roundabout"] = tts ? "Приготовьтесь въехать на кольцо " : "prepare_roundabout.ogg";
-	dictionary["roundabout"] = tts ? "въедьте на кольцо, " : "roundabout.ogg";
+	dictionary["roundabout"] = tts ? "въезжайте на кольцо, " : "roundabout.ogg";
 	dictionary["then"] = tts ? " затем " : "then.ogg";
 	dictionary["and"] = tts ? " и " : "and.ogg";
-	dictionary["take"] = tts ? "выполните " : "take.ogg";
+	dictionary["take"] = tts ? "используйте " : "take.ogg";
 	dictionary["exit"] = tts ? "съезд" : "exit.ogg";
 	
 	dictionary["1na"] = tts ? "одна " : "1na.ogg";
@@ -86,10 +95,10 @@ function populateDictionary(tts) {
 	// NEARBY POINTS
 	dictionary["and_arrive_waypoint"] = tts ? "и вы подъедете к ДЖИ-ПИ-ИКС точке " : "and_arrive_waypoint.ogg";
 	dictionary["reached_waypoint"] = tts ? "вы проезжаете ДЖИ-ПИ-ИКС точку " : "reached_waypoint.ogg";
-	dictionary["and_arrive_favorite"] = tts ? "и вы подъедете к точке из избранного " : "and_arrive_favorite.ogg";
-	dictionary["reached_favorite"] = tts ? "вы проезжаете точку из избранного " : "reached_favorite.ogg";
-	dictionary["and_arrive_poi"] = tts ? "и вы подъедете к точке ПОИ " : "and_arrive_poi.ogg";
-	dictionary["reached_poi"] = tts ? "вы проезжаете точку ПОИ " : "reached_poi.ogg";
+	dictionary["and_arrive_favorite"] = tts ? "и вы подъедете помеченному Вами месту " : "and_arrive_favorite.ogg";
+	dictionary["reached_favorite"] = tts ? "вы проезжаете место, занесенное в список избранных мест " : "reached_favorite.ogg";
+	dictionary["and_arrive_poi"] = tts ? "и вы подъедете к " : "and_arrive_poi.ogg";
+	dictionary["reached_poi"] = tts ? "вы проезжаете " : "reached_poi.ogg";
 	
 	// ATTENTION
 	//dictionary["exceed_limit"] = tts ? "Вы превысили допустимую скорость " : "exceed_limit.ogg";
@@ -97,7 +106,7 @@ function populateDictionary(tts) {
 	dictionary["attention"] = tts ? "Внимание, " : "attention.ogg";
 	dictionary["speed_camera"] = tts ? "камера" : "speed_camera.ogg";
 	dictionary["border_control"] = tts ? "пограничный пункт" : "border_control.ogg";
-	dictionary["railroad_crossing"] = tts ? "железная дорога" : "railroad_crossing.ogg";
+	dictionary["railroad_crossing"] = tts ? "железнодорожный переезд" : "railroad_crossing.ogg";
 	dictionary["traffic_calming"] = tts ? "искуственная неровность" : "traffic_calming.ogg";
 	dictionary["toll_booth"] = tts ? "пункт оплаты проезда" : "toll_booth.ogg";
 	dictionary["stop"] = tts ? "знак Стоп" : "stop.ogg";
@@ -114,7 +123,8 @@ function populateDictionary(tts) {
 	dictionary["on"] = tts ? "по " : "on.ogg";
 	dictionary["onto"] = tts ? "на " : "onto.ogg";
 	dictionary["to"] = tts ? "до " : "to.ogg";
-	dictionary["toward"] = tts ? "к " : "toward.ogg";
+	dictionary["toward"] = tts ? "в направлении на " : "toward.ogg";
+
 	
 	// DISTANCE UNIT SUPPORT
 	dictionary["metr"] = tts ? "метр" : "metr.ogg";
@@ -146,6 +156,7 @@ function populateDictionary(tts) {
 	dictionary["minute_i"] = tts ? "минуты" : "minute_i.ogg";
 	dictionary["minutes"] = tts ? "минут" : "minutes.ogg";
 }
+
 
 
 //// COMMAND BUILDING / WORD ORDER
@@ -335,9 +346,9 @@ function follow_street(streetName) {
 		return dictionary["to"] + " " + streetName["toDest"];
 	} else if ((streetName["toRef"] === streetName["fromRef"] && streetName["toStreetName"] === streetName["fromStreetName"]) 
 		|| (streetName["toStreetName"] === "" && streetName["toRef"] === streetName["fromRef"])) {
-		return dictionary["on"] + " " + assemble_street_name(streetName);
+		return dictionary["on"] + " " + assemble_street_name(streetName, 2);
 	} else if (!(streetName["toRef"] === streetName["fromRef"] && streetName["toStreetName"] === streetName["fromStreetName"])) {
-		return dictionary["to"] + " " + assemble_street_name(streetName);
+		return dictionary["to"] + " " + assemble_street_name(streetName, 1);
 	}
 }
 
@@ -361,12 +372,13 @@ function take_exit(turnType, dist, exitString, exitInt, streetName) {
 }
 
 function take_exit_name(streetName) {
+	var toStreetName = getStreetName("", streetName["toStreetName"], 3);
 	if (Object.keys(streetName).length == 0 || (streetName["toDest"] === "" && streetName["toStreetName"] === "") || !tts) {
 		return "";
 	} else if (streetName["toDest"] != "") {
-		return dictionary["onto"] + " " + streetName["toStreetName"] + dictionary["toward"] + " " + streetName["toDest"];
+		return dictionary["onto"] + " " + toStreetName + dictionary["toward"] + " " + streetName["toDest"];
 	} else if (streetName["toStreetName"] != "") {
-		return dictionary["onto"] + " " + streetName["toStreetName"]
+		return dictionary["onto"] + " " + toStreetName;
 	} else {
 		return "";
 	}
@@ -413,10 +425,10 @@ function  getTurnType(turnType) {
 			return dictionary["right_sl"];
 			break;
 		case "left_keep":
-			return dictionary["left_keep"];
+			return dictionary["left_sl"];
 			break;
 		case "right_keep":
-			return dictionary["right_keep"];
+			return dictionary["right_sl"];
 			break;
 	}
 }
@@ -433,7 +445,7 @@ function roundabout(dist, angle, exit, streetName) {
 	if (dist == -1) {
 		return dictionary["take"] + " " + nth(exit) + " " + dictionary["exit"] + " " + turn_street(streetName);
 	} else {
-		return dictionary["after"] + " " + distance(dist) + " " + dictionary["roundabout"] + " " + dictionary["and"] + " " + dictionary["take"] + " " + nth(exit) + " " + dictionary["exit"] + " " + turn_street(streetName);
+		return dictionary["after"] + " " + distance(dist) + " " + dictionary["roundabout"] + " " + dictionary["take"] + " " + nth(exit) + " " + dictionary["exit"] + " " + turn_street(streetName);
 	}
 
 }
@@ -450,26 +462,163 @@ function turn_street(streetName) {
 	} else if (streetName["toStreetName"] === "" && streetName["toRef"] === "") {
 		return dictionary["toward"] + " " + streetName["toDest"];
 	} else if (streetName["toRef"] === streetName["fromRef"] && streetName["toStreetName"] === streetName["fromStreetName"]) {
-		return dictionary["on"] + " " + assemble_street_name(streetName);
+		return dictionary["on"] + " " + assemble_street_name(streetName, 2);
 	} else if (streetName["toStreetName"] === "" && streetName["toRef"] === streetName["fromRef"]) {
-		return dictionary["on"] + " " + assemble_street_name(streetName);
+		return dictionary["on"] + " " + assemble_street_name(streetName, 2);
 	} else if (!(streetName["toRef"] === streetName["fromRef"] && streetName["toStreetName"] === streetName["fromStreetName"])) {
-		return dictionary["onto"] + " " + assemble_street_name(streetName);
+		return dictionary["onto"] + " " + assemble_street_name(streetName, 3);
 	}
 	return "";
 }
 
-function assemble_street_name(streetName) {
+// Проверка идентификационного номера дороги на соответствие правилам русского языка
+// Идентификационные номера дорог длиной больше 6 символов или содержащие цифры перед буквами не произносятся
+// ref - оригинальный идентификационный номер дороги
+// result - произносимый идентификационный номер дороги
+function getRef(ref)
+{
+	if(ref.length > 6)
+		return "";
+	var isFounded = false;
+	for(var i=0; i<ref.length; i++)
+	{
+		if(ref[i] >= "0" && ref[i] <= "9")
+		{
+			isFounded=true;
+		}
+		else
+		{
+			if(isFounded)
+				return "";
+		}
+	}
+	return ref;
+}
+
+// Замена сокращенного обозначния типа дороги, населенного пункта или иного объекта на полное
+// str - оригинальное название дороги
+// subStr - заменяемая подстрока. Обычно сокращенное обозначние типа дороги, населенного пункта или иного объекта
+// newSubStr - заменяющая подстрока. Обычно полное обозначние типа дороги, населенного пункта или иного объекта
+// toStart - флаг необходимости перенести обозначение типа дороги в начало строки
+// result - исправленное название дороги
+function ReplaceSubstring(str, subStr, newSubStr, toStart)
+{
+	str = str.toLowerCase();
+	subStr = subStr.toLowerCase();
+	var isFounded = true;
+	while(isFounded)
+	{
+		isFounded = str.indexOf(subStr) >= 0;
+		if(isFounded)
+			str = str.replace(subStr, newSubStr + " ");
+	}
+	if(toStart && str.indexOf(newSubStr) > 0)
+	{
+		str= str.replace(newSubStr, "");
+		str = newSubStr + str;
+	}
+
+	return str;
+}
+
+// Формирование названия дороги, соответствующего правилам русского языка
+// ref - идентификационный номер дороги
+// streetName - оригинальное название дороги
+// wordCase - падеж
+// result - название дороги, соответствующее правилам русского языка
+function getStreetName(ref, streetName, wordCase)
+{
+	var urbanRoadTypesShort = ["ул.", "пр.", "пер.", "пл.", "бул."];
+	var urbanRoadTypesFull = ["улица", "проспект", "переулок", "площадь", "бульвар"];
+	var ruralRoadTypesShort = ["г.", "д.", "дер.",  
+		"с.", "п.", "пос.", "пгт", "п.г.т.",
+		"р.п.", "ст.", "м.к.р.",
+		"мкр.", "а, д ", "т, б ", "сан.", "с.н.т.", "снт", "к.с.", "к, с ", "з.", "фаб.",
+		"б.о.", "ж, д ", "а, п ", "вдхр."];
+		var ruralRoadTypesFull = ["город", "городу", "деревня", "деревне", "деревня", "деревне", 
+		"село", "селу", "поселок", "поселку", "поселок", "поселку", "поселок", "поселку", "поселок", "поселку",
+		"рабочий поселок", "рабочему поселку", "станция", "станции", "микрорайон", "микрорайону", 
+		"микрорайон", "микрорайону", "", "", 
+		"турбаза", "турбазе", "санаторий", "санаторию", "садовое товарищество", "садовому товариществу", "садовое товарищество", "садовому товариществу", 
+		"коллективный сад", "коллективному саду", "коллективный сад", "коллективному саду", "завод", "заводу", "фабрика", "фабрике",
+		"база отдыха", "базе отдыха", "железнодорожная", "железнодорожной",
+		"аэропорт", "аэропорту", "водохранилище", "водохранилищу"];
+	var roadCases= ["Автодорога", "Автодороги", "Автодороге", "Автодорогу", "Автодорогой", "Автодороге"];
+	var streetCases = ["улица", "улицы", "улице", "улицу", "улицей", "улице"];
+	var smallStreetCases = ["переулок", "переулка", "переулку", "переулок", "переулком", "переулке"];
+	var aveneuCases = ["проспект", "проспекта", "проспекту", "проспект", "проспектом", "проспекте"];
+	var squareCases = ["площадь", "площади", "площади", "площадь", "площадью", "площади"];
+	var boulvarCases = ["бульвар", "бульвара", "бульвару", "бульвар", "бульваром", "бульваре"];
+
+	var fromStringIndex = streetName.indexOf(" от ");
+	if(fromStringIndex > 0)
+		streetName = streetName.substring(0, fromStringIndex - 1);
+ 
+	for(var i=0; i<ruralRoadTypesShort.length; i++)
+	{
+		if(streetName.indexOf(" к ") < 0)
+			streetName = ReplaceSubstring(streetName, ruralRoadTypesShort[i], ruralRoadTypesFull[i * 2], false);
+		else
+			streetName = ReplaceSubstring(streetName, ruralRoadTypesShort[i], ruralRoadTypesFull[i * 2 + 1], false);
+	}
+	for(var i=0; i<urbanRoadTypesShort.length; i++)
+	{
+		streetName = ReplaceSubstring(streetName, urbanRoadTypesShort[i], urbanRoadTypesFull[i], true);
+	}
+
+	var isFounded = true;
+	for(var i=0; i<urbanRoadTypesFull.length; i++)
+	{
+		if(streetName.indexOf(urbanRoadTypesFull[i])>=0)
+		{
+			isFounded = false;
+			if(i>=0 && i<=1)
+			{
+				streetName = streetName.replace(urbanRoadTypesFull[i], streetCases[wordCase]);
+				break;
+			}
+			if(i>=2 && i<=3)
+			{
+				streetName = streetName.replace(urbanRoadTypesFull[i], aveneuCases[wordCase]);
+				break;
+			}
+			if(i>=4 && i<=5)
+			{
+				streetName = streetName.replace(urbanRoadTypesFull[i], smallStreetCases[wordCase]);
+				break;
+			}
+			if(i==6)
+			{
+				streetName = streetName.replace(urbanRoadTypesFull[i], squareCases[wordCase]);
+				break;
+			}
+			if(i==7)
+			{
+				streetName = streetName.replace(urbanRoadTypesFull[i], boulvarCases[wordCase]);
+				break;
+			}
+			break;
+		}
+	}
+	if(ref != "")
+		ref = ref + ".";
+	if(isFounded)
+		streetName = roadCases[wordCase] + " " + ref +" " + streetName;
+	return streetName;
+}
+
+
+function assemble_street_name(streetName, wordCase) {
 // assemble_street_name(voice([Ref, Name, ""], _), Concat) :- atom_concat(Ref, " ", C1), atom_concat(C1, Name, Concat).
 // assemble_street_name(voice(["", Name, Dest], _), [C1, "toward", Dest]) :- atom_concat(Name, " ", C1).
 // assemble_street_name(voice([Ref, _, Dest], _), [C1, "toward", Dest]) :- atom_concat(Ref, " ", C1).
+	var ref = getRef(streetName["toRef"]);
+	var toStreetName = getStreetName(ref, streetName["toStreetName"], wordCase);
 	if (streetName["toDest"] === "") {
-		return streetName["toRef"] + " " + streetName["toStreetName"];
-	} else if (streetName["toRef"] === "") {
-		return streetName["toStreetName"] + " " + dictionary["toward"] + " " + streetName["toDest"];
-	} else if (streetName["toRef"] != "") {
-		return streetName["toRef"] + " " + dictionary["toward"] + " " + streetName["toDest"];
-	}
+		return toStreetName;
+	} else {
+		return toStreetName + " " + dictionary["toward"] + " " + streetName["toDest"];
+	} 
 }
 
 function nth(exit) {
@@ -583,7 +732,7 @@ function and_arrive_poi(dest) {
 }
 
 function reached_destination(dest) {
-	return dictionary["reached_destination"] + " " + dest;
+	return dictionary["reached_destination"];
 }
 
 function reached_waypoint(dest) {
